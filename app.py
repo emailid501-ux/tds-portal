@@ -197,7 +197,7 @@ try:
 except Exception:
      USERS = {"admin": {"password": "admin123", "role": "Admin", "block": "All"}}
 
-# --- Premium Glassmorphism UI ---
+# --- Light Sky Glass Theme ---
 def load_css():
     st.markdown("""
     <style>
@@ -206,79 +206,80 @@ def load_css():
         /* Global Reset & Font */
         html, body, [class*="css"] {
             font-family: 'Inter', sans-serif;
-            color: #E2E8F0 !important; /* Light Text */
+            color: #2D3748 !important; /* Dark Slate Text */
         }
         
-        /* Main Background - Deep Gradient */
+        /* Main Background - Light Sky Gradient */
         .stApp {
-            background: linear-gradient(135deg, #0F2027 0%, #203A43 50%, #2C5364 100%);
+            background: linear-gradient(135deg, #F5F7FA 0%, #C3CFE2 100%);
             background-attachment: fixed;
         }
 
-        /* Glassmorphism Cards */
+        /* Glassmorphism Cards (Light) */
         .css-1r6slb0, .css-12oz5g7, .stForm {
-            background: rgba(255, 255, 255, 0.05) !important;
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
+            background: rgba(255, 255, 255, 0.70) !important;
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.4);
             border-radius: 16px;
-            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.05); /* Soft Shadow */
             padding: 2rem;
         }
         
-        /* Input Fields - Dark Glass */
+        /* Input Fields - White Glass */
         .stTextInput > div > div > input, 
         .stNumberInput > div > div > input,
         .stSelectbox > div > div > div {
-            background: rgba(0, 0, 0, 0.3) !important;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            color: white !important;
+            background: rgba(255, 255, 255, 0.9) !important;
+            border: 1px solid #E2E8F0;
+            color: #2D3748 !important;
             border-radius: 8px;
         }
         .stTextInput > div > div > input:focus,
         .stNumberInput > div > div > input:focus {
-            border-color: #4FD1C5;
-            box-shadow: 0 0 0 1px #4FD1C5;
+            border-color: #3182CE;
+            box-shadow: 0 0 0 1px #3182CE;
         }
         
-        /* Buttons - Neon Gradient */
+        /* Buttons - Blue Gradient */
         .stButton > button {
-            background: linear-gradient(90deg, #00d2ff 0%, #3a7bd5 100%);
-            color: white;
+            background: linear-gradient(90deg, #3182CE 0%, #63B3ED 100%);
+            color: white !important;
             border: none;
             border-radius: 8px;
             font-weight: 600;
             text-transform: uppercase;
             letter-spacing: 1px;
             transition: all 0.3s ease;
-            box-shadow: 0 4px 15px rgba(0, 210, 255, 0.3);
+            box-shadow: 0 4px 15px rgba(49, 130, 206, 0.2);
         }
         .stButton > button:hover {
             transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(0, 210, 255, 0.5);
+            box-shadow: 0 6px 20px rgba(49, 130, 206, 0.3);
+            color: white !important;
         }
         
         /* Headings & Metrics */
         h1 {
-            background: linear-gradient(to right, #4FD1C5, #63B3ED);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
+            color: #2C5282 !important;
             font-weight: 800;
         }
-        h2, h3 { color: #A0AEC0 !important; }
+        h2, h3 { color: #4A5568 !important; }
         
         [data-testid="stMetricValue"] {
             font-size: 2.5rem;
-            color: #4FD1C5 !important;
-            text-shadow: 0 0 10px rgba(79, 209, 197, 0.3);
+            color: #3182CE !important;
+            text-shadow: none;
         }
         
-        /* Tables */
+        /* Tables (Light) */
         .dataframe {
-            background: rgba(255, 255, 255, 0.05);
-            color: white;
+            background: white;
+            color: #2D3748;
             border-radius: 10px;
         }
+        th { background-color: #EBF8FF !important; color: #2C5282 !important; }
+        td { color: #2D3748 !important; }
         
     </style>
     """, unsafe_allow_html=True)
