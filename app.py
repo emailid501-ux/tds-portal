@@ -710,8 +710,8 @@ else:
                         if raw_data: # Check if data exists
                             # Define Standard Headers
                             expected_headers = [
-                                "Timestamp", "Project Name", "Block", "Vendor Name", "PAN", "Bill No", "Bill Date", 
-                                "Payment Head", "Date of Payment", "Gross Amount", "Taxable Amount", "GST No",
+                                "Timestamp", "Project Name", "Block", "Vendor Name", "PAN", "Bill No", 
+                                "Payment Date", "Bill Date", "Payment Head", "Gross Amount", "Taxable Amount", "GST No",
                                 "CGST", "SGST", "IGST", "TDS 194C 1%", "TDS 194C 2%", "TDS 194J", "TDS 194I",
                                 "Total Deduction", "File Link", "Entered By"
                             ]
@@ -813,7 +813,7 @@ else:
                             report_df = pd.DataFrame(final_rows)
                             
                             # Reorder columns to match requirement (Project first)
-                            display_cols = [proj_col, "Block", "Vendor Name", "PAN", "Bill No", "Bill Date", 
+                            display_cols = [proj_col, "Block", "Vendor Name", "PAN", "Bill No", "Payment Date", "Bill Date", 
                                           "Payment Head", "Gross Amount", "Taxable Amount", 
                                           "CGST", "SGST", "IGST", "TDS 194C 1%", "TDS 194C 2%", "TDS 194J", "TDS 194I", "Total Deduction"]
                             
