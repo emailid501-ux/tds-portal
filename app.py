@@ -98,8 +98,8 @@ def init_sheet_headers(sheet):
         # Check if empty, if so add headers
         if not worksheet.get_all_values():
             headers = [
-                "Timestamp", "Project Name", "Block", "Vendor Name", "PAN", "Bill No", "Bill Date", 
-                "Payment Head", "Payment Date", "Gross Amount", "Taxable Amount", "GST No",
+                "Timestamp", "Project Name", "Block", "Vendor Name", "PAN", "Bill No", 
+                "Payment Date", "Bill Date", "Payment Head", "Gross Amount", "Taxable Amount", "GST No",
                 "CGST", "SGST", "IGST", "TDS 194C 1%", "TDS 194C 2%", "TDS 194J", "TDS 194I",
                 "Total Deduction", "File Link", "Entered By"
             ]
@@ -447,7 +447,11 @@ else:
             with c2:
                 bill_date = st.date_input("Bill Date", key="v_bill_date")
             with c3:
-                payment_head = st.selectbox("Payment Head", ["Vehicle Hiring", "Meeting Cost", "Office Contingency", "Printing & Stationery", "Other"], key="v_head")
+                payment_head = st.selectbox("Payment Head", [
+                    "Vehicle Hiring", "Meeting Cost", "Office Contingency", "Printing & Stationery",
+                    "Residential Training", "Non Residential Training", "Computer equipment & Hiring",
+                    "MIS Hono.", "Consultant", "Other"
+                ], key="v_head")
             with c4:
                 date_of_payment = st.date_input("Date of Payment", key="v_pay_date")
             
@@ -553,8 +557,8 @@ else:
                                     ws = init_sheet_headers(sheet)
                                     if ws:
                                         row_data = [
-                                            str(datetime.now()), project_name, block_name, vendor_name, pan_no, bill_no, str(bill_date),
-                                            payment_head, str(date_of_payment), bill_value, taxable_amount, gst_no,
+                                            str(datetime.now()), project_name, block_name, vendor_name, pan_no, bill_no, 
+                                            str(date_of_payment), str(bill_date), payment_head, bill_value, taxable_amount, gst_no,
                                             cgst, sgst, igst, tds_194c_1, tds_194c_2, tds_194j, tds_194i,
                                             total_deduction, file_link, st.session_state.username
                                         ]
@@ -825,7 +829,7 @@ else:
                                     s, *d = str(value).partition(".")
                                     r = ",".join([s[x-2:x] for x in range(-3, -len(s), -2)][::-1] + [s[-3:]])
                                     formatted = "".join([r] + d)
-                                    return f"₹ {formatted}"
+                                    return f"Rs. {formatted}"
                                 except:
                                     return value
 
@@ -837,6 +841,7 @@ else:
                             html_report = f"""
                             <html>
                             <head>
+                            <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 <style>
     @page {{ margin: 2.8cm 4.0cm 3.1cm 1.4cm; size: landscape; }} /* Top Right Bottom Left */
     body {{ font-family: Arial, sans-serif; font-size: 9px; }}
