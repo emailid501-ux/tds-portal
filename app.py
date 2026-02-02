@@ -194,6 +194,8 @@ try:
     USERS = fetch_users_dynamic()
     if not USERS:
         USERS = {"admin": {"password": "admin123", "role": "Admin", "block": "All"}}
+except Exception:
+     USERS = {"admin": {"password": "admin123", "role": "Admin", "block": "All"}}
 
 # --- Dynamic Block Synchronization ---
 # Merge hardcoded blocks with any new blocks found in the Users sheet
@@ -212,9 +214,7 @@ try:
         
         ALL_BLOCKS.sort() # Keep dropdown sorted
 except Exception as e:
-    print(f"Error syncing blocks: {e}") # Fallback
-except Exception:
-     USERS = {"admin": {"password": "admin123", "role": "Admin", "block": "All"}}
+    print(f"Error syncing blocks: {e}")
 
 # --- Light Sky Glass Theme ---
 def load_css():
