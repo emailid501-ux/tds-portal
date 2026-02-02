@@ -99,7 +99,7 @@ def init_sheet_headers(sheet):
         if not worksheet.get_all_values():
             headers = [
                 "Timestamp", "Project Name", "Block", "Vendor Name", "PAN", "Bill No", 
-                "Payment Date", "Bill Date", "Payment Head", "Gross Amount", "Taxable Amount", "GST No",
+                "Bill Date", "Payment Head", "Payment Date", "Gross Amount", "Taxable Amount", "GST No",
                 "CGST", "SGST", "IGST", "TDS 194C 1%", "TDS 194C 2%", "TDS 194J", "TDS 194I",
                 "Total Deduction", "File Link", "Entered By"
             ]
@@ -558,7 +558,7 @@ else:
                                     if ws:
                                         row_data = [
                                             str(datetime.now()), project_name, block_name, vendor_name, pan_no, bill_no, 
-                                            str(date_of_payment), str(bill_date), payment_head, bill_value, taxable_amount, gst_no,
+                                            str(bill_date), payment_head, str(date_of_payment), bill_value, taxable_amount, gst_no,
                                             cgst, sgst, igst, tds_194c_1, tds_194c_2, tds_194j, tds_194i,
                                             total_deduction, file_link, st.session_state.username
                                         ]
@@ -711,7 +711,7 @@ else:
                             # Define Standard Headers
                             expected_headers = [
                                 "Timestamp", "Project Name", "Block", "Vendor Name", "PAN", "Bill No", 
-                                "Payment Date", "Bill Date", "Payment Head", "Gross Amount", "Taxable Amount", "GST No",
+                                "Bill Date", "Payment Head", "Date of Payment", "Gross Amount", "Taxable Amount", "GST No",
                                 "CGST", "SGST", "IGST", "TDS 194C 1%", "TDS 194C 2%", "TDS 194J", "TDS 194I",
                                 "Total Deduction", "File Link", "Entered By"
                             ]
@@ -813,8 +813,8 @@ else:
                             report_df = pd.DataFrame(final_rows)
                             
                             # Reorder columns to match requirement (Project first)
-                            display_cols = [proj_col, "Block", "Vendor Name", "PAN", "Bill No", "Payment Date", "Bill Date", 
-                                          "Payment Head", "Gross Amount", "Taxable Amount", 
+                            display_cols = [proj_col, "Block", "Vendor Name", "PAN", "Bill No", "Bill Date", 
+                                          "Payment Head", "Payment Date", "Gross Amount", "Taxable Amount", 
                                           "CGST", "SGST", "IGST", "TDS 194C 1%", "TDS 194C 2%", "TDS 194J", "TDS 194I", "Total Deduction"]
                             
                             # Filter only existing columns for display
