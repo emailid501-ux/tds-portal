@@ -773,7 +773,7 @@ else:
                                     df[col] = 0.0 # Initialize missing numeric cols
 
                             # --- Process Report ---
-                            st.subheader(f"TDS Report for {report_month} {report_year}")
+                            st.subheader(f"TDS Report for {report_month} {report_year} - {current_block}")
                             
                             # Group by Project
                             grouped = df.groupby(proj_col)
@@ -865,7 +865,7 @@ else:
 </style>
 </head>
 <body>
-<div class='header'>TDS Report for {report_month} {report_year}</div>
+<div class='header'>TDS Report for {report_month} {report_year} - {current_block}</div>
 """
 
                             # Main Table HTML
