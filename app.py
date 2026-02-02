@@ -193,7 +193,26 @@ def fetch_users_dynamic():
 try:
     USERS = fetch_users_dynamic()
     if not USERS:
-        USERS = {"admin": {"password": "admin123", "role": "Admin", "block": "All"}} # Fallback
+        USERS = {"admin": {"password": "admin123", "role": "Admin", "block": "All"}}
+
+# --- Dynamic Block Synchronization ---
+# Merge hardcoded blocks with any new blocks found in the Users sheet
+try:
+    if USERS:
+        dynamic_blocks = set()
+        for u_data in USERS.values():
+            blk = u_data.get("block")
+            if blk and blk != "All" and blk != "Block":
+                dynamic_blocks.add(blk)
+        
+        # Add to global list if not present
+        for d_blk in dynamic_blocks:
+            if d_blk not in ALL_BLOCKS:
+                ALL_BLOCKS.append(d_blk)
+        
+        ALL_BLOCKS.sort() # Keep dropdown sorted
+except Exception as e:
+    print(f"Error syncing blocks: {e}") # Fallback
 except Exception:
      USERS = {"admin": {"password": "admin123", "role": "Admin", "block": "All"}}
 
