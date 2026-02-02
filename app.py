@@ -204,9 +204,21 @@ def load_css():
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
         
         /* Global Reset & Font */
-        html, body, [class*="css"] {
+        html, body, [class*="css"], [data-testid="stAppViewContainer"] {
             font-family: 'Inter', sans-serif;
             color: #000000 !important; /* Pitch Black Text */
+        }
+        
+        /* Force Labels to be Black */
+        .stTextInput label, .stNumberInput label, .stSelectbox label, p, .stMarkdown {
+            color: #000000 !important;
+            font-weight: 600;
+        }
+
+        /* Input Placeholders - Critical Fix */
+        ::placeholder {
+            color: #4A5568 !important; /* Dark Gray */
+            opacity: 1;
         }
         
         /* Main Background - Light Sky Gradient */
@@ -216,7 +228,7 @@ def load_css():
         }
 
         /* Glassmorphism Cards (Light) */
-        .css-1r6slb0, .css-12oz5g7, .stForm {
+        .css-1r6slb0, .css-12oz5g7, .stForm, [data-testid="stForm"] {
             background: rgba(255, 255, 255, 0.70) !important;
             backdrop-filter: blur(16px);
             -webkit-backdrop-filter: blur(16px);
@@ -230,11 +242,12 @@ def load_css():
         .stTextInput > div > div > input, 
         .stNumberInput > div > div > input,
         .stSelectbox > div > div > div {
-            background: rgba(255, 255, 255, 0.9) !important;
+            background: rgba(255, 255, 255, 0.95) !important;
             border: 1px solid #718096; /* Darker Border */
             color: #000000 !important;
             border-radius: 8px;
             font-weight: 600;
+            caret-color: black;
         }
         .stTextInput > div > div > input:focus,
         .stNumberInput > div > div > input:focus {
