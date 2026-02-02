@@ -206,7 +206,7 @@ def load_css():
         /* Global Reset & Font */
         html, body, [class*="css"] {
             font-family: 'Inter', sans-serif;
-            color: #2D3748 !important; /* Dark Slate Text */
+            color: #000000 !important; /* Pitch Black Text */
         }
         
         /* Main Background - Light Sky Gradient */
@@ -231,9 +231,10 @@ def load_css():
         .stNumberInput > div > div > input,
         .stSelectbox > div > div > div {
             background: rgba(255, 255, 255, 0.9) !important;
-            border: 1px solid #E2E8F0;
-            color: #2D3748 !important;
+            border: 1px solid #718096; /* Darker Border */
+            color: #000000 !important;
             border-radius: 8px;
+            font-weight: 600;
         }
         .stTextInput > div > div > input:focus,
         .stNumberInput > div > div > input:focus {
@@ -261,25 +262,25 @@ def load_css():
         
         /* Headings & Metrics */
         h1 {
-            color: #2C5282 !important;
+            color: #1A365D !important; /* Dark Navy for Titles */
             font-weight: 800;
         }
-        h2, h3 { color: #4A5568 !important; }
+        h2, h3 { color: #000000 !important; }
         
         [data-testid="stMetricValue"] {
             font-size: 2.5rem;
-            color: #3182CE !important;
+            color: #2B6CB0 !important;
             text-shadow: none;
         }
         
         /* Tables (Light) */
         .dataframe {
             background: white;
-            color: #2D3748;
+            color: #000000;
             border-radius: 10px;
         }
-        th { background-color: #EBF8FF !important; color: #2C5282 !important; }
-        td { color: #2D3748 !important; }
+        th { background-color: #EBF8FF !important; color: #000000 !important; font-weight: bold; }
+        td { color: #000000 !important; }
         
     </style>
     """, unsafe_allow_html=True)
