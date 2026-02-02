@@ -711,7 +711,7 @@ else:
                             # Define Standard Headers
                             expected_headers = [
                                 "Timestamp", "Project Name", "Block", "Vendor Name", "PAN", "Bill No", 
-                                "Bill Date", "Payment Head", "Date of Payment", "Gross Amount", "Taxable Amount", "GST No",
+                                "Bill Date", "Payment Head", "Payment Date", "Gross Amount", "Taxable Amount", "GST No",
                                 "CGST", "SGST", "IGST", "TDS 194C 1%", "TDS 194C 2%", "TDS 194J", "TDS 194I",
                                 "Total Deduction", "File Link", "Entered By"
                             ]
