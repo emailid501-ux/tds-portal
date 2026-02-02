@@ -34,16 +34,24 @@ def get_google_sheet():
         if os.path.exists("credentials.json"):
              creds = ServiceAccountCredentials.from_json_keyfile_name("credentials.json", SCOPE)
         else:
-            # 2. Fallback to Streamlit Secrets (Cloud) - Wrapped in Try/Except
+            # 2. Fallback to Streamlit Secrets (Cloud)
             try:
+                # DEBUG: Show what keys exist
+                # st.write("Available Secrets Keys:", list(st.secrets.keys())) 
+                
                 if "gcp_service_account" in st.secrets:
                     creds_dict = st.secrets["gcp_service_account"]
                     creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, SCOPE)
+                # Backup: Check if user pasted keys at ROOT level (common mistake)
+                elif "type" in st.secrets and "project_id" in st.secrets:
+                    st.warning("Found secrets at root level. Converting...")
+                    creds_dict = dict(st.secrets)
+                    creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, SCOPE)
                 else:
-                    st.error("Missing 'gcp_service_account' in Secrets.")
+                    st.error(f"Missing 'gcp_service_account' in Secrets. Found keys: {list(st.secrets.keys())}")
                     return None
             except FileNotFoundError:
-                st.error("Missing Credentials! Please add credentials.json locally or secrets on Cloud.")
+                st.error("Secrets file not found.")
                 return None
             
         client = gspread.authorize(creds)
