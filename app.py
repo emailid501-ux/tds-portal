@@ -683,281 +683,476 @@ else:
         st.title("📊 Reports & Returns")
         st.write("Generate detailed TDS Reports with Project-wise subtotals.")
         
-        report_month = st.selectbox("Select Month", ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"])
-        report_year = st.number_input("Select Year", min_value=2024, max_value=2030, value=datetime.now().year)
+        # report_month = st.selectbox("Select Month", ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"])
+        # report_year = st.number_input("Select Year", min_value=2024, max_value=2030, value=datetime.now().year)
         
-        if st.button("Generate Vendor Report (26Q)"):
-            with st.spinner("Fetching data from Google Sheets..."):
+        # --- Date Range Picker ---
+        today = datetime.now()
+        first_day_current_month = today.replace(day=1)
+        
+        c1, c2 = st.columns(2)
+        with c1:
+            start_date = st.date_input("Start Date", value=first_day_current_month)
+        with c2:
+            end_date = st.date_input("End Date", value=today)
+
+        if st.button("Generate Reports"): 
+            
+            # --- Shared Data Fetching Helper ---
+            def get_data_as_df(worksheet_index_or_name):
                 sheet = get_google_sheet()
-                if sheet:
+                if not sheet: return pd.DataFrame()
+                try:
+                    if isinstance(worksheet_index_or_name, int):
+                        ws = sheet.get_worksheet(worksheet_index_or_name)
+                    else:
+                        ws = sheet.worksheet(worksheet_index_or_name)
+                    
+                    data = ws.get_all_values()
+                    if not data: return pd.DataFrame()
+                    
+                    headers = [h.strip() for h in data[0]] # Normalize headers
+                    # Deduplicate headers
+                    seen = {}
+                    new_headers = []
+                    for h in headers:
+                        if h in seen:
+                            seen[h] += 1
+                            new_headers.append(f"{h}_{seen[h]}")
+                        else:
+                            seen[h] = 0
+                            new_headers.append(h)
+                            
+                    rows = data[1:]
+                    return pd.DataFrame(rows, columns=new_headers)
+                except Exception:
+                    return pd.DataFrame()
+
+            # --- 1. Vendor Data (26Q) ---
+            st.markdown("---")
+            st.subheader("1. Vendor Report (26Q)")
+            df_26q = pd.DataFrame() # Initialize
+
+            with st.spinner("Fetching Vendor Data..."):
+                df_26q = get_data_as_df(0) # First sheet
+                
+                if not df_26q.empty:
+                        # --- Role-Based Filtering ---
+                    current_block = st.session_state.get("assigned_block", "All")
+                    if current_block != "All" and "Block" in df_26q.columns:
+                        df_26q = df_26q[df_26q["Block"] == current_block]
+
+                    # --- 1. Column Normalization (MOVED UP) ---
+                    # Must normalize BEFORE filtering by date
+                    
+                    # --- 0. Strip Header Whitespace ---
+                    df_26q.columns = df_26q.columns.str.strip()
+
+                    def fuzzy_rename(df, target, keywords):
+                        if target in df.columns: return
+                        # Find candidate
+                        for col in df.columns:
+                            c_lower = col.lower().strip()
+                            if all(k.lower() in c_lower for k in keywords):
+                                df.rename(columns={col: target}, inplace=True)
+                                return
+
+                    # Canonical Normalization based on User Data Sample
+                    # Sample Headers: Time Strap, Project, Block, Vendor Name, PAN no., Bill No., Bill Date, Payment Head, Payment date, 
+                    # Gross Amount, amount on which TDS deducted, GST No., CGST, SGST, IGST, TDS @ 1%, TDS @ 2%, TDS 194J, TDS 194I, Total amount, File upload, Block
+                    
+                    normalization_map = {
+                        "Payment Date": ["Payment date", "Payment Date"],
+                        "Bill Date": ["Bill Date"],
+                        "Bill No": ["Bill No.", "Bill No"],
+                        "PAN": ["PAN no.", "PAN No.", "PAN"],
+                        "GST No": ["GST No.", "GST No"],
+                        "Taxable Amount": ["amount on which TDS deducted", "Taxable Amount"],
+                        "Total Deduction": ["Total amount", "Total Deduction"],
+                        "File Link": ["File upload", "File Link", "File"],
+                        "Vendor Name": ["Vendor Name", "Party Name"],
+                        "Project Name": ["Project", "Project Name"],
+                        "Block": ["Block", "Site"],
+                        # --- CRITICAL: Restore TDS Mappings ---
+                        "TDS 194C 1%": ["TDS @ 1%", "TDS 194C 1%", "1% TDS"],
+                        "TDS 194C 2%": ["TDS @ 2%", "TDS 194C 2%", "2% TDS"],
+                        "TDS 194J": ["TDS 194J", "194J"],
+                        "TDS 194I": ["TDS 194I", "194I"]
+                    }
+
+                    for canonical, variations in normalization_map.items():
+                        if canonical in df_26q.columns: continue
+                        for var in variations:
+                            if var in df_26q.columns:
+                                df_26q.rename(columns={var: canonical}, inplace=True)
+                                break
+                    
+                    # Fuzzy Backups if exact match fails
+                    fuzzy_rename(df_26q, "Payment Date", ["Payment", "Date"])
+                    fuzzy_rename(df_26q, "Bill Date", ["Bill", "Date"])
+                    
+                    # Fix for potential missing 'Project Name'
+                    if "Project Name" not in df_26q.columns and "Project" in df_26q.columns:
+                         df_26q.rename(columns={"Project": "Project Name"}, inplace=True)
+
+                    # --- 2. Date Range Filtering (Payment Date) ---
                     try:
-                        # Fetch Data using get_all_values with Retry Logic
-                        ws = sheet.get_worksheet(0)
-                        
-                        def fetch_data_with_retry(worksheet, retries=3, delay=2):
-                            for i in range(retries):
-                                try:
-                                    return worksheet.get_all_values()
-                                except Exception as e:
-                                    if i == retries - 1: # Last attempt
-                                        raise e
-                                    time.sleep(delay)
-                                    delay *= 2 # Exponential backoff
-                            return []
+                        # Normalize Payment Date
+                        if "Payment Date" in df_26q.columns:
+                            # Convert to datetime with versatile parsing
+                            # User data is YYYY-MM-DD. dayfirst=True is bad for this. 
+                            # Let pandas infer or use mixed.
+                            df_26q['Payment Date Temp'] = pd.to_datetime(df_26q['Payment Date'], errors='coerce')
+                            
+                            # Filter by Range
+                            mask = (df_26q['Payment Date Temp'].dt.date >= start_date) & (df_26q['Payment Date Temp'].dt.date <= end_date)
+                            df_26q = df_26q[mask]
+                            
+                            # Format Date Columns for Display (DD-MM-YYYY)
+                            # Apply to valid dates only
+                            valid_dates = df_26q['Payment Date Temp'].notna()
+                            df_26q.loc[valid_dates, 'Payment Date'] = df_26q.loc[valid_dates, 'Payment Date Temp'].dt.strftime('%d-%m-%Y')
+                            
+                            if "Bill Date" in df_26q.columns:
+                                 df_26q['Bill Date'] = pd.to_datetime(df_26q['Bill Date'], errors='coerce').dt.strftime('%d-%m-%Y')
 
-                        raw_data = fetch_data_with_retry(ws)
-                        
-                        if raw_data: # Check if data exists
-                            # Define Standard Headers
-                            expected_headers = [
-                                "Timestamp", "Project Name", "Block", "Vendor Name", "PAN", "Bill No", 
-                                "Bill Date", "Payment Head", "Payment Date", "Gross Amount", "Taxable Amount", "GST No",
-                                "CGST", "SGST", "IGST", "TDS 194C 1%", "TDS 194C 2%", "TDS 194J", "TDS 194I",
-                                "Total Deduction", "File Link", "Entered By"
-                            ]
-                            
-                            first_row = raw_data[0]
-                            
-                            # Check if first row is actually a header
-                            if first_row and str(first_row[0]).strip() == "Timestamp":
-                                headers = [h.strip() for h in first_row]
-                                rows = raw_data[1:]
-                                df = pd.DataFrame(rows, columns=headers)
-                            else:
-                                # First row looks like data (or empty header), treat all as data
-                                # Ensure row length matches header length to prevent mismatch
-                                # If row is shorter, pad with empty strings
-                                padded_data = []
-                                for row in raw_data:
-                                    if len(row) < len(expected_headers):
-                                        row += [""] * (len(expected_headers) - len(row))
-                                    padded_data.append(row[:len(expected_headers)]) # Truncate if too long (unlikely but safe)
-                                
-                                df = pd.DataFrame(padded_data, columns=expected_headers)
+                            df_26q = df_26q.drop(columns=['Payment Date Temp'])
                         else:
-                            st.info("Sheet is empty.")
-                            df = pd.DataFrame()
+                            st.warning("Column 'Payment Date' not found even after normalization. Please check sheet headers.")
+                            # st.write("Available Columns:", df_26q.columns.tolist())
+                            
+                    except Exception as e: 
+                        st.error(f"Date Filter Error (26Q): {e}")
+
+                    if not df_26q.empty:
+                        # --- 3. Numeric Conversion ---
+                        numeric_cols = ["Gross Amount", "Taxable Amount", "CGST", "SGST", "IGST", 
+                                      "TDS 194C 1%", "TDS 194C 2%", "TDS 194J", "TDS 194I", "Total Deduction"]
+                        for col in numeric_cols:
+                            if col in df_26q.columns:
+                                df_26q[col] = pd.to_numeric(df_26q[col], errors='coerce').fillna(0)
                         
-                        if not df.empty:
-                            # --- Role-Based Filtering ---
-                            current_block = st.session_state.get("assigned_block", "All")
-                            user_role = st.session_state.get("user_role", "Block User")
-                            
-                            if current_block != "All":
-                                # Filter data to show ONLY the user's block
-                                if "Block" in df.columns:
-                                    df = df[df["Block"] == current_block]
-                                    st.info(f"Filtering Report for Block: {current_block}")
-                                else:
-                                    st.warning("Block column missing in data. Showing all records (Admin check required).")
-                            
-                            # Fix for potential missing 'Project Name' column
-                            proj_col = "Project Name"
-                            # Double check if our fallback worked or if we have a mismatch
-                            if "Project Name" not in df.columns:
-                                if "Project" in df.columns:
-                                     proj_col = "Project"
-                                else:
-                                    # This should theoretically not happen now with forced headers, but safe to keep
-                                    df["Project Name"] = "Unknown" 
-                            
-                            # Ensure numeric columns
-                            numeric_cols = ["Gross Amount", "Taxable Amount", "CGST", "SGST", "IGST", 
-                                          "TDS 194C 1%", "TDS 194C 2%", "TDS 194J", "TDS 194I", "Total Deduction"]
-                            
-                            # Convert to numeric
-                            for col in numeric_cols:
-                                if col in df.columns:
-                                    df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
-                                else:
-                                    df[col] = 0.0 # Initialize missing numeric cols
+                        # --- 4. Display Selection ---
+                        col_mapping = {
+                            "Project Name": "Project",
+                            "Block": "Block",
+                            "Vendor Name": "Vendor Name",
+                            "PAN": "PAN no.",
+                            "GST No": "GST No.",
+                            "Bill No": "Bill No.",
+                            "Bill Date": "Bill Date",
+                            "Payment Head": "Payment Head",
+                            "Payment Date": "Payment date",
+                            "Gross Amount": "Gross Amount",
+                            "Taxable Amount": "amount on which TDS deducted",
+                            "CGST": "CGST",
+                            "SGST": "SGST",
+                            "IGST": "IGST",
+                            "TDS 194C 1%": "TDS @ 1%",
+                            "TDS 194C 2%": "TDS @ 2%",
+                            "TDS 194J": "TDS 194J",
+                            "TDS 194I": "TDS 194I",
+                            "Total Deduction": "Total amount"
+                        }
 
-                            # --- Process Report ---
-                            st.subheader(f"TDS Report for {report_month} {report_year} - {current_block}")
-                            
-                            # Group by Project
-                            grouped = df.groupby(proj_col)
-                            
-                            # Map for Project-wise Tax Totals
-                            project_tax_totals = {}
-                            
-                            final_rows = []
-                            grand_totals = {col: 0 for col in numeric_cols}
+                        desired_order = [
+                            "Project Name", "Block", "Vendor Name", "PAN", "GST No", 
+                            "Bill No", "Bill Date", "Payment Head", "Payment Date", 
+                            "Gross Amount", "Taxable Amount", "CGST", "SGST", "IGST", 
+                            "TDS 194C 1%", "TDS 194C 2%", "TDS 194J", "TDS 194I", "Total Deduction"
+                        ]
 
-                            for project, group in grouped:
-                                # Add Data Rows
-                                for _, row in group.iterrows():
-                                    final_rows.append(row.to_dict())
-                                
-                                # Calculate Subtotals
-                                subtotal = group[numeric_cols].sum()
-                                sub_row = {k: "" for k in df.columns}
-                                sub_row[proj_col] = f"Total {project}"
-                                for k, v in subtotal.items():
-                                    sub_row[k] = v
-                                    grand_totals[k] += v
-                                
-                                # Store Project Totals for Summary Section
-                                project_tax_totals[project] = subtotal.to_dict()
+                        # Force all required columns to exist
+                        for col in desired_order:
+                            if col not in df_26q.columns:
+                                df_26q[col] = ""
 
-                                final_rows.append(sub_row) # Add Subtotal Row
-                            
-                            # Add Grand Total Row
-                            grand_row = {k: "" for k in df.columns}
-                            grand_row[proj_col] = "GRAND TOTAL"
-                            for k, v in grand_totals.items():
-                                grand_row[k] = v
-                            final_rows.append(grand_row)
-                            
-                            # Create Display DF
-                            report_df = pd.DataFrame(final_rows)
-                            
-                            # Reorder columns to match requirement (Project first)
-                            display_cols = [proj_col, "Block", "Vendor Name", "PAN", "Bill No", "Bill Date", 
-                                          "Payment Head", "Payment Date", "Gross Amount", "Taxable Amount", 
-                                          "CGST", "SGST", "IGST", "TDS 194C 1%", "TDS 194C 2%", "TDS 194J", "TDS 194I", "Total Deduction"]
-                            
-                            # Filter only existing columns for display
-                            valid_display_cols = [c for c in display_cols if c in report_df.columns]
-                            
-                            st.dataframe(report_df[valid_display_cols], hide_index=True)
-                            
-                            # --- Helper for Indian Currency Formatting ---
-                            def format_indian_currency(value):
-                                try:
-                                    value = float(value)
-                                    s, *d = str(value).partition(".")
-                                    r = ",".join([s[x-2:x] for x in range(-3, -len(s), -2)][::-1] + [s[-3:]])
-                                    formatted = "".join([r] + d)
-                                    return f"Rs. {formatted}"
-                                except:
-                                    return value
+                        # Create Display DataFrame
+                        final_df = df_26q[desired_order].rename(columns=col_mapping)
+                        
+                        # --- ADD TOTALS LOGIC ---
+                        # We want Project-wise totals and Grand Total
+                        
+                        # Identify numeric columns in final_df (mapped names)
+                        # Mapped numeric columns:
+                        disp_numeric_cols = [
+                            "Gross Amount", "amount on which TDS deducted", "CGST", "SGST", "IGST", 
+                            "TDS @ 1%", "TDS @ 2%", "TDS 194J", "TDS 194I", "Total amount"
+                        ]
 
-                            # --- Tax Summary Tables (Matrix View) ---
-                            st.divider()
-                            st.subheader("Project-wise Tax Summaries")
-                            
-                            # HTML Builder for Download - Re-initializing
-                            html_report = f"""
-                            <html>
-                            <head>
-                            <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-<style>
-    @page {{ margin: 2.8cm 4.0cm 3.1cm 1.4cm; size: landscape; }} /* Top Right Bottom Left */
-    body {{ font-family: Arial, sans-serif; font-size: 9px; }}
-    
-    /* Strict Table Compaction */
-    table.table {{ width: auto; border-collapse: collapse; margin-bottom: 10px; }}
-    table.table th, table.table td {{ 
-        border: 1px solid #ddd; 
-        padding: 2px 4px; 
-        text-align: left; 
-        vertical-align: middle; 
-        font-size: 9px; 
-        white-space: nowrap; 
-        width: 1%; /* Force shrink */
-    }}
-    
-    th {{ background-color: #f2f2f2; font-weight: bold; }}
-    .header {{ font-size: 14px; font-weight: bold; margin-bottom: 5px; }}
-    .sub-header {{ font-size: 11px; font-weight: bold; margin-top: 10px; color: #333; }}
-    .grand-total-row {{ font-weight: bold; background-color: #e6f3ff; }}
-</style>
-</head>
-<body>
-<div class='header'>TDS Report for {report_month} {report_year} - {current_block}</div>
-"""
+                        # Ensure they are numeric
+                        for c in disp_numeric_cols:
+                            final_df[c] = pd.to_numeric(final_df[c], errors='coerce').fillna(0)
 
-                            # Main Table HTML
-                            html_report += report_df[valid_display_cols].to_html(index=False, classes='table')
+                        # Create a list to build new DF with subtotals
+                        new_rows = []
+                        
+                        # Groups
+                        projects = final_df["Project"].unique()
+                        grand_totals = {c: 0.0 for c in disp_numeric_cols}
+                        
+                        for proj in projects:
+                            proj_df = final_df[final_df["Project"] == proj]
+                            
+                            # Add data rows
+                            for _, row in proj_df.iterrows():
+                                new_rows.append(row)
+                                # Add to grand total
+                                for c in disp_numeric_cols:
+                                    grand_totals[c] += row[c]
+                            
+                            # Add Project Subtotal
+                            subrow = {c: "" for c in final_df.columns}
+                            subrow["Project"] = f"Total {proj}"
+                            subrow["Vendor Name"] = "Subtotal"
+                            
+                            for c in disp_numeric_cols:
+                                val = proj_df[c].sum()
+                                subrow[c] = val
+                            
+                            new_rows.append(pd.Series(subrow))
+                        
+                        # Add Grand Total Row
+                        grand_row = {c: "" for c in final_df.columns}
+                        grand_row["Project"] = "GRAND TOTAL"
+                        for c in disp_numeric_cols:
+                            grand_row[c] = grand_totals[c]
+                        
+                        # Re-create DataFrame
+                        final_df_display = pd.DataFrame(new_rows, columns=final_df.columns)
+                        
+                        # Format for display (optional, keeps numeric for styling or exports? 
+                        # Usually better to keep numeric for export, but user might want formatting.
+                        # Sticking to numeric for now, st.dataframe handles it well)
+                        
+                        st.subheader(f"1. Vendor Report (26Q) - Block: {current_block}")
+                        st.dataframe(final_df_display, hide_index=True)
+                        st.caption(f"Showing {len(final_df)} original records + totals.")
+                        
+                        # Update final_df reference for Export use later
+                        final_df = final_df_display
+                        
+                    else:
+                        st.subheader(f"1. Vendor Report (26Q) - Block: {current_block}")
+                        st.warning(f"No Vendor records found for selected period.")
+                else:
+                    st.info("Vendor Sheet Empty")
 
-                            html_report += "<div class='sub-header'>Project-wise Tax Matrix</div>"
-                            
-                            sorted_projects = sorted(project_tax_totals.keys())
-                            
-                            # Define Rows (Heads)
-                            tax_heads_map = {
-                                "TDS 194C 1%": "TDS 194C 1%",
-                                "TDS 194C 2%": "TDS 194C 2%",
-                                "TDS 194J 10%": "TDS 194J",
-                                "TDS 194I 10%": "TDS 194I",
-                                "CGST @1%": "CGST",
-                                "SGST @1%": "SGST",
-                                "IGST @2%": "IGST"
-                            }
-                            
-                            matrix_data = []
-                            col_totals = {proj: 0.0 for proj in sorted_projects}
-                            col_totals["Total"] = 0.0
+            # --- 2. Salary Data (24Q) ---
+            st.markdown("---")
+            st.subheader("2. Salary Report (24Q)")
+            df_24q = pd.DataFrame() # Initialize
 
-                            # Build Matrix Rows
-                            for display_head, key in tax_heads_map.items():
-                                row_data = {"Head": display_head}
-                                row_total = 0.0
-                                
-                                for proj in sorted_projects:
-                                    val = project_tax_totals[proj].get(key, 0)
-                                    row_total += val
-                                    col_totals[proj] += val # Add to column total
-                                    
-                                    # Format Value for Display
-                                    row_data[proj] = format_indian_currency(val) if val > 0 else "0"
-                                
-                                row_data["Total"] = format_indian_currency(row_total)
-                                col_totals["Total"] += row_total
-                                matrix_data.append(row_data)
+            with st.spinner("Fetching Salary Data..."):
+                df_24q = get_data_as_df("Salary Data") # Attempt to fetch
+                
+                if not df_24q.empty:
+                    # --- Filtering ---
+                    current_block = st.session_state.get("assigned_block", "All")
+                    if current_block != "All" and "Block" in df_24q.columns:
+                        df_24q = df_24q[df_24q["Block"] == current_block]
+                    
+                    # Date Range Filtering for Salary
+                    if "Month" in df_24q.columns and "Year" in df_24q.columns:
+                        try:
+                            df_24q["Temp_Date"] = pd.to_datetime(df_24q["Month"] + " " + df_24q["Year"].astype(str), format="%B %Y", errors='coerce')
+                            mask = (df_24q["Temp_Date"].dt.date >= start_date) & (df_24q["Temp_Date"].dt.date <= end_date)
+                            df_24q = df_24q[mask]
+                        except Exception as e:
+                            st.warning(f"Salary Date Parse Error: {e}")
 
-                            # Add Total Row
-                            total_row = {"Head": "Total"}
-                            for proj in sorted_projects:
-                                total_row[proj] = format_indian_currency(col_totals[proj])
-                            total_row["Total"] = format_indian_currency(col_totals["Total"])
-                            
-                            matrix_data.append(total_row)
-                            
-                            # Create DataFrame
-                            matrix_df = pd.DataFrame(matrix_data)
-                            
-                            # Display in App
-                            st.dataframe(matrix_df, hide_index=True)
-                            
-                            # Add to HTML
-                            html_report += matrix_df.to_html(index=False, classes='table')
-                            
-                            html_report += "</body></html>"
-                            
-                            # --- Download Buttons ---
-                            st.divider()
-                            st.subheader("📥 Downloads")
-                            dl_cols = st.columns(2)
-                            with dl_cols[0]:
-                                st.download_button(
-                                    label="Download Excel (HTML Format)",
-                                    data=html_report,
-                                    file_name=f"TDS_Report_{report_month}_{report_year}.xls",
-                                    mime="application/vnd.ms-excel",
-                                    help="Opens in Excel with formatting preserved"
-                                )
-                            with dl_cols[1]:
-                                st.download_button(
-                                    label="Download Printable View (PDF)",
-                                    data=html_report,
-                                    file_name=f"TDS_Report_{report_month}_{report_year}.html",
-                                    mime="text/html",
-                                    help="Download HTML. Open and 'Print to PDF' for best results."
-                                )
-                                
+                    if not df_24q.empty:
+                         # Numeric
+                        sal_numeric = ["Gross Salary", "Taxable Amount", "TDS Deducted"]
+                        for col in sal_numeric:
+                            if col in df_24q.columns:
+                                df_24q[col] = pd.to_numeric(df_24q[col], errors='coerce').fillna(0)
 
-                            
-                            
+                        st.dataframe(df_24q[["Project", "Block", "Employee Name", "PAN", "Month", "Year", "Gross Salary", "Taxable Amount", "TDS Deducted"]], hide_index=True)
+                        st.caption(f"Showing {len(df_24q)} records.")
+                    else:
+                         st.warning(f"No Salary records found for selection.")
+                else:
+                    # st.info("Salary Sheet Empty") 
+                    pass
 
-                        else:
-                            st.info("No data found.")
-                            
-                    except Exception as e:
-                        st.error(f"Error generating report: {e}")
+            # --- 3. Combined Tax Summary ---
+            st.markdown("---")
+            st.subheader("3. Combined Tax Summary")
+            
+            # Consolidated Tax Dictionary: {Project: {Head: Amount}}
+            tax_summary = {}
+
+            # Helper to add to summary
+            def add_to_summary(df, group_col, head_col, amount_col=None):
+                if df.empty or group_col not in df.columns: return
+                
+                for _, row in df.iterrows():
+                    proj = row.get(group_col, "Unknown")
+                    if proj not in tax_summary: tax_summary[proj] = {}
+                    
+                    # Try to get value, robustly
+                    val = row.get(head_col, 0)
+                    try:
+                        # Clean string values like " 1,000 " -> 1000
+                        if isinstance(val, str):
+                            val = val.replace(",", "").strip()
+                            if val == "": val = 0
+                        val = float(val)
+                    except:
+                        val = 0
+                        
+                    if val > 0:
+                        head_name = head_col 
+                        if head_col == "TDS Deducted": head_name = "TDS u/s 192B"
+                        
+                        tax_summary[proj][head_name] = tax_summary[proj].get(head_name, 0) + val
+
+            # Process Vendor Data
+            if not df_26q.empty:
+                p_col = "Project Name"
+                vendor_heads = ["TDS 194C 1%", "TDS 194C 2%", "TDS 194J", "TDS 194I", "CGST", "SGST", "IGST"]
+                for head in vendor_heads:
+                    if head in df_26q.columns:
+                        add_to_summary(df_26q, p_col, head)
+
+            # Process Salary Data
+            if not df_24q.empty:
+                 add_to_summary(df_24q, "Project", "TDS Deducted")
+
+            # --- Build Matrix DataFrame ---
+            if tax_summary:
+                all_projects = sorted(tax_summary.keys())
+                all_heads = [
+                    "TDS 194C 1%", "TDS 194C 2%", "TDS 194J", "TDS 194I", 
+                    "TDS u/s 192B", # Salary Head
+                    "CGST", "SGST", "IGST"
+                ]
+                
+                matrix_rows = []
+                col_totals = {p: 0.0 for p in all_projects}
+                col_totals["Total"] = 0.0
+
+                for head in all_heads:
+                    row = {"Head": head}
+                    row_total = 0.0
+                    for p in all_projects:
+                        val = tax_summary[p].get(head, 0)
+                        row[p] = f"{val:,.2f}" if val > 0 else "0"
+                        row_total += val
+                        col_totals[p] += val
+                    
+                    row["Total"] = f"{row_total:,.2f}"
+                    col_totals["Total"] += row_total
+                    matrix_rows.append(row)
+                
+                # Totals Row
+                tot_row = {"Head": "Grand Total"}
+                for p in all_projects:
+                    tot_row[p] = f"{col_totals[p]:,.2f}"
+                tot_row["Total"] = f"{col_totals['Total']:,.2f}"
+                matrix_rows.append(tot_row)
+
+                st.dataframe(pd.DataFrame(matrix_rows), hide_index=True)
+                
+                # --- EXPORT LOGIC ---
+                st.markdown("### Export Reports")
+                
+                # --- 1. Excel Export (Consolidated) ---
+                import io
+                import xlsxwriter
+
+                excel_buffer = io.BytesIO()
+                with pd.ExcelWriter(excel_buffer, engine='xlsxwriter') as writer:
+                    workbook = writer.book
+                    worksheet = workbook.add_worksheet("TDS Report")
+                    writer.sheets["TDS Report"] = worksheet
+                    
+                    # Formats
+                    header_format = workbook.add_format({'bold': True, 'font_size': 14, 'align': 'center', 'valign': 'vcenter', 'border': 1})
+                    sub_header_format = workbook.add_format({'bold': True, 'font_size': 12, 'border': 1, 'bg_color': '#D3D3D3'})
+                    data_format = workbook.add_format({'border': 1})
+                    
+                    # Current Row Pointer
+                    current_row = 0
+                    
+                    # Main Header
+                    report_title = f"TDS & GST Report for period: {start_date.strftime('%d-%m-%Y')} to {end_date.strftime('%d-%m-%Y')}"
+                    worksheet.merge_range(current_row, 0, current_row, 10, report_title, header_format)
+                    current_row += 2
+                    
+                    # --- Section 1: Vendor 26Q ---
+                    worksheet.write(current_row, 0, "1. Vendor Report (26Q)", sub_header_format)
+                    current_row += 1
+                    
+                    if not df_26q.empty:
+                        # Write Headers
+                        for col_num, value in enumerate(final_df.columns.values):
+                            worksheet.write(current_row, col_num, value, sub_header_format)
+                        current_row += 1
+                        
+                        # Write Data
+                        # Clean NaN for Excel
+                        df_to_write = final_df.fillna("")
+                        for row_num, row_data in enumerate(df_to_write.values):
+                            for col_num, value in enumerate(row_data):
+                                worksheet.write(current_row + row_num, col_num, value, data_format)
+                        current_row += len(df_to_write) + 2
+                    else:
+                        worksheet.write(current_row, 0, "No Data", data_format)
+                        current_row += 2
+
+                    # --- Section 2: Salary 24Q ---
+                    worksheet.write(current_row, 0, "2. Salary Report (24Q)", sub_header_format)
+                    current_row += 1
+                    
+                    if not df_24q.empty:
+                        # Prepare Salary DF for export (subset)
+                        sal_exp_df = df_24q[["Project", "Block", "Employee Name", "PAN", "Month", "Year", "Gross Salary", "Taxable Amount", "TDS Deducted"]]
+                        # Clean NaN
+                        sal_exp_df = sal_exp_df.fillna("")
+                        
+                        # Write Headers
+                        for col_num, value in enumerate(sal_exp_df.columns.values):
+                            worksheet.write(current_row, col_num, value, sub_header_format)
+                        current_row += 1
+                        
+                         # Write Data
+                        for row_num, row_data in enumerate(sal_exp_df.values):
+                            for col_num, value in enumerate(row_data):
+                                worksheet.write(current_row + row_num, col_num, value, data_format)
+                        current_row += len(sal_exp_df) + 2
+                    else:
+                        worksheet.write(current_row, 0, "No Data", data_format)
+                        current_row += 2
+
+                    # --- Section 3: Summary ---
+                    worksheet.write(current_row, 0, "3. Combined Tax Summary", sub_header_format)
+                    current_row += 1
+                    
+                    df_summary = pd.DataFrame(matrix_rows)
+                    if not df_summary.empty:
+                        df_summary = df_summary.fillna("")
+                         # Write Headers
+                        for col_num, value in enumerate(df_summary.columns.values):
+                            worksheet.write(current_row, col_num, value, sub_header_format)
+                        current_row += 1
+                        
+                        # Write Data
+                        for row_num, row_data in enumerate(df_summary.values):
+                            for col_num, value in enumerate(row_data):
+                                worksheet.write(current_row + row_num, col_num, value, data_format)
+                        current_row += len(df_summary) + 2
+                
+                st.download_button(
+                    label="Download Excel Report",
+                    data=excel_buffer.getvalue(),
+                    file_name="TDS_Report_Consolidated.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                )
+            else:
+                st.info("No Tax Data to summarize.")
 
     elif menu == "⚙️ Settings":
         st.title("⚙️ Settings")
-        st.write("Configure Google Sheet Connection here.")
 
